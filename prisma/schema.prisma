@@ -1,0 +1,93 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// 1. Utilizatorii sistemului (Dispeceri, Admini, Curieri)
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  role          Role      @default(DISPATCHER)
+  shipments     Shipment[] // Coletele alocate acestui curier (dacă e curier)
+  createdAt     DateTime  @default(now())
+}
+
+enum Role {
+  ADMIN
+  DISPATCHER
+  COURIER
+}
+
+// 2. Firmele/Clienții B2B (ex: eMag, FashionDays)
+model Company {
+  id          String     @id @default(cuid())
+  name        String
+  cui         String     @unique
+  address     String
+  contacts    Contact[]  // Persoane de contact în acea firmă
+  shipments   Shipment[] // Toate coletele trimise de această firmă
+}
+
+// 3. Persoanele de contact din cadrul firmelor
+model Contact {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String
+  email     String?
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+}
+
+// 4. Coletul (Inima aplicației tale)
+model Shipment {
+  id              String   @id @default(cuid())
+  awb             String   @unique // Codul unic de tracking (ex: ZOR12345)
+  weight          Float
+  description     String?
+  
+  // Relația cu firma care trimite (Expeditor)
+  senderId        String
+  sender          Company  @relation(fields: [senderId], references: [id])
+
+  // Detalii Destinatar (Cui îi livrăm)
+  receiverName    String
+  receiverPhone   String
+  receiverAddress String
+
+  // Statusul actual
+  status          Status   @default(PICKED_UP)
+  
+  // Cine livrează (Curierul)
+  courierId       String?
+  courier         User?    @relation(fields: [courierId], references: [id])
+
+  // Istoricul de statusuri (pentru timeline)
+  history         StatusHistory[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// 5. Istoricul de statusuri (pentru a vedea traseul coletului)
+model StatusHistory {
+  id         String   @id @default(cuid())
+  status     Status
+  comment    String?  // Ex: "Destinatarul nu a fost acasă"
+  shipmentId String
+  shipment   Shipment @relation(fields: [shipmentId], references: [id])
+  createdAt  DateTime @default(now())
+}
+
+enum Status {
+  PICKED_UP      // Ridicat de la expeditor
+  IN_TRANSIT     // În depozit/tranzit
+  OUT_FOR_DELIVERY // La curier în mașină
+  DELIVERED      // Livrat
+  CANCELED       // Anulat
+  RETURNED       // Retur
+}
